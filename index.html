@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>เช็คการโอนเงิน</title>
+
+<meta name="theme-color" content="#f7f7f7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="เช็คโอนเงิน">
+<meta name="application-name" content="เช็คโอนเงิน">
+
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<style>
+body { font-family: "Sarabun", sans-serif; margin:0; padding:0; background:#f7f7f7; color:#333; }
+.app { max-width:480px; margin:0 auto; padding:16px; }
+h2 { font-size:1.5rem; text-align:center; margin-bottom:16px; }
+.summary { display:flex; justify-content:space-between; margin-bottom:16px; }
+.summary .box { flex:1; background:#fff; padding:12px; margin:0 4px; border-radius:8px; text-align:center; font-weight:bold; box-shadow:0 2px 4px rgba(0,0,0,0.05); }
+.summary .box span { display:block; font-size:1.2rem; margin-top:4px; }
+#list { display:flex; flex-direction:column; gap:10px; }
+.card { background:#fff; border-radius:8px; padding:12px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 4px rgba(0,0,0,0.05); transition: background 0.2s; }
+.card.paid { background:#d4edda; }
+.card.skip { background:#fff3cd; }
+.card .name { font-weight:500; }
+.card .amount { margin-top:4px; font-size:0.9rem; color:#555; }
+.actions { display:flex; gap:6px; }
+.actions button { padding:6px 10px; border:none; border-radius:6px; font-size:1rem; cursor:pointer; transition:all 0.2s; }
+.actions .paid-btn { background:#28a745; color:#fff; }
+.actions .paid-btn:hover { background:#218838; }
+.actions .skip-btn { background:#ffc107; color:#212529; }
+.actions .skip-btn:hover { background:#e0a800; }
+.reset-btn, .clear-btn { width:100%; padding:10px; margin-bottom:16px; font-size:1rem; border:none; border-radius:8px; cursor:pointer; transition:background 0.2s; }
+.reset-btn { background:#dc3545; color:#fff; }
+.reset-btn:hover { background:#c82333; }
+.clear-btn { background:#17a2b8; color:#fff; }
+.clear-btn:hover { background:#138496; }
+@media(max-width:480px){.summary{flex-direction:column}.summary .box{margin:4px 0}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js')
+      .then(reg=>console.log('Service Worker registered', reg))
+      .catch(err=>console.log('Service Worker failed', err));
+  });
+}
+
+const STORAGE_KEY = "transferData";
+const app = document.getElementById("app");
+let state = { data: [] };
+
+init();
+function init(){
+  loadData();
+  renderLayout();
+  renderList();
+  renderSummary();
+}
+
+function loadData(){
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if(stored){
+    state.data = JSON.parse(stored);
+  } else {
+    state.data = [
+      {id:1, name:"Emergency saving", amount:2000, paid:false, skip:false},
+      {id:2, name:"แต่งงาน", amount:2500, paid:false, skip:false},
+      {id:3, name:"ออมไปเที่ยว", amount:1000, paid:false, skip:false},
+      {id:4, name:"กองทุนสำรองเลี้ยงชีพ", amount:3400, paid:false, skip:false},
+      {id:5, name:"ค่าประกันชีวิต", amount:2715, paid:false, skip:false},
+      {id:6, name:"Buffer", amount:1000, paid:false, skip:false},
+      {id:7, name:"ค่าบ้าน", amount:4500, paid:false, skip:false},
+      {id:8, name:"ค่ารถ", amount:4000, paid:false, skip:false},
+      {id:9, name:"ค่าโทรศัพท์", amount:600, paid:false, skip:false},
+      {id:10, name:"ค่าไฟ", amount:600, paid:false, skip:false},
+      {id:11, name:"ค่าน้ำ", amount:100, paid:false, skip:false},
+      {id:12, name:"รถคอนโด", amount:300, paid:false, skip:false},
+      {id:13, name:"เน็ต", amount:300, paid:false, skip:false},
+      {id:14, name:"ค่าน้ำมันรถ+ตัดผม", amount:735, paid:false, skip:false},
+      {id:15, name:"ค่ากินรายเดือน", amount:8000, paid:false, skip:false},
+      {id:16, name:"ค่ายา + ของ", amount:1000, paid:false, skip:false},
+      {id:17, name:"ใช้หนี้กยศ", amount:1100, paid:false, skip:false},
+      {id:18, name:"ประกันสังคม", amount:750, paid:false, skip:false},
+      {id:19, name:"ให้พ่อ", amount:2000, paid:false, skip:false},
+      {id:20, name:"ค่ากินพิเศษ", amount:1000, paid:false, skip:false}
+    ];
+    saveData();
+  }
+}
+function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data)); }
+function toggleItem(id, paid, skip){
+  const idx = state.data.findIndex(i=>i.id===id);
+  if(idx===-1) return;
+  if(paid!==null) state.data[idx].paid = paid;
+  if(skip!==null) state.data[idx].skip = skip;
+  saveData();
+  renderList(); renderSummary();
+}
+function renderLayout(){
+  app.className="app"; app.innerHTML="";
+  const h2=document.createElement("h2"); h2.textContent="📅 เช็คการโอนเงิน"; app.appendChild(h2);
+  
+  const resetBtn=document.createElement("button");
+  resetBtn.className="reset-btn"; resetBtn.textContent="↺ รีเซ็ตรายการที่โอนแล้ว";
+  resetBtn.onclick=resetPaidOnly;
+  app.appendChild(resetBtn);
+  
+  const clearBtn=document.createElement("button");
+  clearBtn.className="clear-btn"; clearBtn.textContent="🗑 ล้างข้อมูลทั้งหมด";
+  clearBtn.onclick=clearLocalStorage;
+  app.appendChild(clearBtn);
+
+  app.appendChild(createSummary());
+  app.appendChild(createListContainer());
+}
+function createSummary(){
+  const wrap=document.createElement("div"); wrap.className="summary";
+  wrap.innerHTML=`<div class="box">ต้องโอน <span id="total">0</span></div>
+                  <div class="box">โอนแล้ว <span id="paid">0</span></div>`;
+  return wrap;
+}
+function createListContainer(){ const div=document.createElement("div"); div.id="list"; return div; }
+function renderSummary(){
+  let total=0, paid=0;
+  state.data.forEach(i=>{ if(!i.skip) total+=i.amount; if(i.paid) paid+=i.amount; });
+  document.getElementById("total").textContent=total.toLocaleString();
+  document.getElementById("paid").textContent=paid.toLocaleString();
+}
+function renderList(){
+  const list=document.getElementById("list"); list.innerHTML="";
+  state.data.forEach(i=>{
+    const card=document.createElement("div"); card.className="card";
+    if(i.paid) card.classList.add("paid");
+    if(i.skip) card.classList.add("skip");
+    card.innerHTML=`<div><div class="name">${i.name}</div><div class="amount">${i.amount.toLocaleString()} บาท</div></div>`;
+    const actions=document.createElement("div"); actions.className="actions";
+    const paidBtn=document.createElement("button"); paidBtn.className="paid-btn"; paidBtn.textContent="✔";
+    paidBtn.onclick=()=>toggleItem(i.id,!i.paid,null);
+    const skipBtn=document.createElement("button"); skipBtn.className="skip-btn"; skipBtn.textContent="⏭";
+    skipBtn.onclick=()=>toggleItem(i.id,null,!i.skip);
+    actions.append(paidBtn,skipBtn); card.appendChild(actions); list.appendChild(card);
+  });
+}
+async function resetPaidOnly(){
+  const result=await Swal.fire({
+    title:'ต้องการรีเซ็ตรายการที่โอนแล้ว?',
+    text:'รายการ Paid จะถูกรีเซ็ตเป็นยังไม่ได้โอน',
+    icon:'warning',
+    showCancelButton:true,
+    confirmButtonColor:'#dc3545',
+    cancelButtonColor:'#6c757d',
+    confirmButtonText:'ใช่ รีเซ็ต',
+    cancelButtonText:'ยกเลิก'
+  });
+  if(result.isConfirmed){
+    state.data.forEach(i=>{ if(i.paid) i.paid=false; });
+    saveData();
+    Swal.fire('รีเซ็ตเรียบร้อย!','รายการ Paid ถูกรีเซ็ตแล้ว','success');
+    renderList(); renderSummary();
+  }
+}
+function clearLocalStorage(){
+  Swal.fire({
+    title:'ต้องการล้างข้อมูลทั้งหมด?',
+    text:'ข้อมูลทั้งหมดใน LocalStorage จะถูกลบและโหลดรายการเริ่มต้นใหม่',
+    icon:'warning',
+    showCancelButton:true,
+    confirmButtonColor:'#17a2b8',
+    cancelButtonColor:'#6c757d',
+    confirmButtonText:'ใช่ ล้าง',
+    cancelButtonText:'ยกเลิก'
+  }).then((result)=>{
+    if(result.isConfirmed){
+      localStorage.removeItem(STORAGE_KEY);
+      loadData();
+      renderList();
+      renderSummary();
+      Swal.fire('ล้างเรียบร้อย!','โหลดรายการเริ่มต้นใหม่แล้ว','success');
+    }
+  });
+}
+</script>
+</body>
+</html>
